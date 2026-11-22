@@ -13,6 +13,9 @@ const app = express();
 app.use(cors());          // allow the React frontend to talk to this server
 app.use(express.json());  // let the server read JSON sent by the frontend
 
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/profile", require("./routes/profile"));
+
 // Health check: a simple "are you alive?" route
 app.get("/api/health", (req, res) => {
   // readyState 1 means "connected" in mongoose
