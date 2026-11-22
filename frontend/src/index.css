@@ -1,1 +1,39 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap");
 @import "tailwindcss";
+
+@theme {
+  --color-ink: #14183b;
+  --color-ink-soft: #232958;
+  --color-paper: #f5f6fb;
+  --color-marigold: #ffb400;
+  --color-slate: #4a5070;
+  --color-line: #e1e4f0;
+  --color-teal: #0f9d8a;
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Visible keyboard focus everywhere */
+:focus-visible {
+  outline: 3px solid var(--color-marigold);
+  outline-offset: 2px;
+}
+
+/* The one animated moment: factor bars fill once on load */
+@keyframes fill-bar {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.bar-fill {
+  transform-origin: left;
+  animation: fill-bar 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bar-fill { animation: none; }
+}
