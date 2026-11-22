@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import AppHeader from "../components/AppHeader";
 import Field, { ErrorNote } from "../components/Field";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
@@ -7,13 +9,12 @@ const PROFILE_KEYS = ["phone", "college", "degree", "graduationYear", "careerGoa
 
 // What the student will be able to do next (built in later phases)
 const COMING = [
-  { title: "Resumes", text: "Upload several versions, one per role." },
   { title: "Job descriptions", text: "Paste or upload the job you want." },
   { title: "Analyses", text: "Scores, skill gaps and your roadmap." },
 ];
 
 export default function Dashboard() {
-  const { student, setStudent, logout } = useAuth();
+  const { student, setStudent } = useAuth();
   const [name, setName] = useState(student.name);
   const [profile, setProfile] = useState({ ...student.profile });
   const [message, setMessage] = useState("");
@@ -44,20 +45,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-marigold font-display font-bold text-ink">R</span>
-            <span className="font-display text-lg font-bold">ResumeFit</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="hidden text-sm text-slate sm:block">{student.email}</span>
-            <button onClick={logout} className="rounded-lg border border-line px-3.5 py-1.5 text-sm font-medium hover:bg-paper">
-              Log out
-            </button>
-          </div>
-        </div>
-      </header>
+      <AppHeader />
 
       <main className="mx-auto max-w-5xl px-6 py-10">
         <div className="flex flex-wrap items-end justify-between gap-6">
@@ -96,9 +84,13 @@ export default function Dashboard() {
           </form>
 
           <aside>
-            <h2 className="font-display text-xl font-bold">Coming up</h2>
-            <p className="mt-1 text-sm text-slate">These unlock as we build the next phases.</p>
-            <ul className="mt-4 space-y-3">
+            <h2 className="font-display text-xl font-bold">Next steps</h2>
+            <Link to="/resumes" className="mt-3 block rounded-xl bg-ink p-4 text-white hover:bg-ink-soft">
+              <p className="font-semibold">Manage your resumes</p>
+              <p className="text-sm text-white/70">Upload several versions, one per role.</p>
+            </Link>
+            <p className="mt-5 text-sm text-slate">These unlock as we build the next phases.</p>
+            <ul className="mt-3 space-y-3">
               {COMING.map((item) => (
                 <li key={item.title} className="rounded-xl border border-dashed border-slate/30 p-4">
                   <p className="font-semibold">{item.title}</p>

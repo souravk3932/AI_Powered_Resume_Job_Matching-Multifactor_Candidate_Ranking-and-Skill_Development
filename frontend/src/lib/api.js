@@ -5,17 +5,24 @@ export function getToken() {
   return localStorage.getItem("token");
 }
 
-export async function api(path, { method = "GET", body } = {}) {
-  const headers = { "Content-Type": "application/json" };
+function authHeaders() {
   const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// body can be a plain object (sent as JSON) or FormData (used for file uploads)
+export async function api(path, { method = "GET", body } = {}) {
+  const headers = authHeaders();
+  const isForm = body instanceof FormData;
+  // For FormData the browser sets the Content-Type itself (it needs a special boundary)
+  if (body && !isForm) headers["Content-Type"] = "application/json";
 
   let res;
   try {
     res = await fetch(`${API_URL}/api${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: body ? (isForm ? body : JSON.stringify(body)) : undefined,
     });
   } catch {
     throw new Error("Cannot reach the server. Is the backend running?");
@@ -29,4 +36,19 @@ export async function api(path, { method = "GET", body } = {}) {
     throw err;
   }
   return data;
+}
+
+// Open a protected PDF in a new tab. A plain link can't send our login token,
+// so we fetch the file with the token and show it from memory.
+export async function openPdf(path) {
+  const tab = window.open("", "_blank"); // open now so popup blockers allow it
+  try {
+    const res = await fetch(`${API_URL}/api${path}`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Could not open the PDF");
+    const url = URL.createObjectURL(await res.blob());
+    tab.location.href = url;
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
 }
