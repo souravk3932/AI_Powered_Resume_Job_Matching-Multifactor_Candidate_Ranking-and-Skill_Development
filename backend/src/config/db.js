@@ -1,4 +1,9 @@
+const dns = require("node:dns");
 const mongoose = require("mongoose");
+
+// Some Windows/router DNS setups refuse the SRV lookup Atlas needs
+// (error: querySrv ECONNREFUSED). Use public DNS for Node only.
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 // Connect to MongoDB using the address stored in .env (never hard-code it!)
 async function connectDB() {
