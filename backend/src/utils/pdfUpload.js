@@ -4,7 +4,13 @@ const path = require("path");
 const multer = require("multer");
 
 const MAX_PDF_BYTES = 5 * 1024 * 1024; // 5 MB
-const UPLOAD_ROOT = path.join(__dirname, "..", "..", "uploads", "resumes");
+const UPLOAD_ROOT = path.join(__dirname, "..", "..", "uploads");
+// "kind" is the sub-folder: "resumes" or "jds". Only these two are allowed.
+const KINDS = ["resumes", "jds"];
+function kindDir(kind) {
+  if (!KINDS.includes(kind)) throw new Error("Unknown upload kind");
+  return path.join(UPLOAD_ROOT, kind);
+}
 
 // Step 1: multer keeps the file in memory only (nothing touches the disk yet)
 const upload = multer({
@@ -29,8 +35,8 @@ function isRealPdf(buffer) {
 
 // Step 3: save to disk under a RANDOM name inside the student's own folder.
 // The original file name is never used as a path (prevents path tricks).
-function savePdf(studentId, buffer) {
-  const dir = path.join(UPLOAD_ROOT, String(studentId));
+function savePdf(studentId, buffer, kind = "resumes") {
+  const dir = path.join(kindDir(kind), String(studentId));
   fs.mkdirSync(dir, { recursive: true });
   const storedName = `${crypto.randomBytes(16).toString("hex")}.pdf`;
   fs.writeFileSync(path.join(dir, storedName), buffer);
@@ -38,12 +44,12 @@ function savePdf(studentId, buffer) {
   return { storedName, fileHash };
 }
 
-function pdfPath(studentId, storedName) {
-  return path.join(UPLOAD_ROOT, String(studentId), path.basename(storedName));
+function pdfPath(studentId, storedName, kind = "resumes") {
+  return path.join(kindDir(kind), String(studentId), path.basename(storedName));
 }
 
-function deletePdf(studentId, storedName) {
-  fs.rmSync(pdfPath(studentId, storedName), { force: true });
+function deletePdf(studentId, storedName, kind = "resumes") {
+  fs.rmSync(pdfPath(studentId, storedName, kind), { force: true });
 }
 
 module.exports = { receivePdf, isRealPdf, savePdf, pdfPath, deletePdf, MAX_PDF_BYTES };

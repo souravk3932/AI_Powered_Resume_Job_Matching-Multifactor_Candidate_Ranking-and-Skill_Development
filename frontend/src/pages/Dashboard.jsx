@@ -9,7 +9,6 @@ const PROFILE_KEYS = ["phone", "college", "degree", "graduationYear", "careerGoa
 
 // What the student will be able to do next (built in later phases)
 const COMING = [
-  { title: "Job descriptions", text: "Paste or upload the job you want." },
   { title: "Analyses", text: "Scores, skill gaps and your roadmap." },
 ];
 
@@ -88,6 +87,10 @@ export default function Dashboard() {
             <Link to="/resumes" className="mt-3 block rounded-xl bg-ink p-4 text-white hover:bg-ink-soft">
               <p className="font-semibold">Manage your resumes</p>
               <p className="text-sm text-white/70">Upload several versions, one per role.</p>
+            </Link>
+            <Link to="/jobs" className="mt-3 block rounded-xl bg-ink p-4 text-white hover:bg-ink-soft">
+              <p className="font-semibold">Save job descriptions</p>
+              <p className="text-sm text-white/70">Paste or upload the job you want.</p>
             </Link>
             <p className="mt-5 text-sm text-slate">These unlock as we build the next phases.</p>
             <ul className="mt-3 space-y-3">
