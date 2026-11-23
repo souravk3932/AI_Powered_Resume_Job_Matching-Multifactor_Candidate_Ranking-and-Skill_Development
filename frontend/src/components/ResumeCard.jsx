@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { api, openPdf } from "../lib/api";
+import ExtractionPanel from "./ExtractionPanel";
 import Field, { ErrorNote } from "./Field";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -91,6 +92,15 @@ export default function ResumeCard({ resume, onChanged }) {
         <p className="mt-3 text-sm text-slate">
           {current.originalFileName} &middot; {formatSize(current.fileSize)} &middot; uploaded {new Date(current.uploadedAt).toLocaleDateString()}
         </p>
+      )}
+
+      {current && !editing && (
+        <ExtractionPanel
+          key={`${resume.id}-${resume.currentVersionNo}`}
+          path={`/resumes/${resume.id}/versions/${resume.currentVersionNo}`}
+          extraction={current.extraction}
+          onChanged={onChanged}
+        />
       )}
 
       <div className="mt-4 space-y-3">

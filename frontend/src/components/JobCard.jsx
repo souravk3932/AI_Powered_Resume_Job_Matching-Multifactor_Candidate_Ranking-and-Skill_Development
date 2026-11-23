@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api, openPdf } from "../lib/api";
+import ExtractionPanel from "./ExtractionPanel";
 import Field, { ErrorNote } from "./Field";
 
 const smallBtn = "rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:bg-paper disabled:opacity-60";
@@ -72,7 +73,7 @@ export default function JobCard({ jd, onChanged }) {
 
           {isPdf ? (
             <p className="mt-3 text-sm text-slate">
-              {jd.originalFileName} &middot; saved {new Date(jd.createdAt).toLocaleDateString()}. Its text will be read in a later step.
+              {jd.originalFileName} &middot; saved {new Date(jd.createdAt).toLocaleDateString()}
             </p>
           ) : (
             <p className="mt-3 whitespace-pre-wrap text-sm text-slate">
@@ -81,6 +82,8 @@ export default function JobCard({ jd, onChanged }) {
           )}
         </>
       )}
+
+      {!editing && <ExtractionPanel path={`/jds/${jd.id}`} extraction={jd.extraction} onChanged={onChanged} />}
 
       <div className="mt-4 space-y-3">
         <ErrorNote>{error}</ErrorNote>

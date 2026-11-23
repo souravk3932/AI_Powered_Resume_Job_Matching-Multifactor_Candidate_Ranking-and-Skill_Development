@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const Resume = require("../models/Resume");
 const ResumeVersion = require("../models/ResumeVersion");
 const { receivePdf, isRealPdf, savePdf, pdfPath, deletePdf } = require("../utils/pdfUpload");
+const { extractResumeVersion, extractionSummary, extractionDetail } = require("../services/extraction");
 
 const router = express.Router();
 router.use(requireAuth); // every resume route needs a login
@@ -22,11 +23,21 @@ function findOwnResume(req) {
   return Resume.findOne({ _id: req.params.id, studentId: req.studentId });
 }
 
+// Find one version of one of MY resumes (ownership check on both)
+// extraSelect (optional) asks for hidden big fields, e.g. "+extraction.text"
+async function findOwnVersion(req, extraSelect = "") {
+  const resume = await findOwnResume(req);
+  const versionNo = Number(req.params.versionNo);
+  if (!resume || !Number.isInteger(versionNo)) return null;
+  return ResumeVersion.findOne({ resumeId: resume._id, studentId: req.studentId, versionNo }).select(extraSelect);
+}
+
 // Store the uploaded PDF and its version record. Returns the new version.
 async function addVersion(req, resume, versionNo) {
   const { storedName, fileHash } = savePdf(req.studentId, req.file.buffer);
+  let version;
   try {
-    return await ResumeVersion.create({
+    version = await ResumeVersion.create({
       resumeId: resume._id,
       studentId: req.studentId,
       versionNo,
@@ -39,11 +50,20 @@ async function addVersion(req, resume, versionNo) {
     deletePdf(req.studentId, storedName); // don't leave an orphan file
     throw err;
   }
+  // Read the text right away. This never throws: a failure is saved on the version.
+  await extractResumeVersion(version);
+  return version;
 }
 
 // Shape sent to the browser (never includes the stored file path)
 function versionView(v) {
-  return { versionNo: v.versionNo, originalFileName: v.originalFileName, fileSize: v.fileSize, uploadedAt: v.uploadedAt };
+  return {
+    versionNo: v.versionNo,
+    originalFileName: v.originalFileName,
+    fileSize: v.fileSize,
+    uploadedAt: v.uploadedAt,
+    extraction: extractionSummary(v.extraction),
+  };
 }
 
 function resumeView(r, version) {
@@ -129,10 +149,7 @@ router.post("/:id/versions", receivePdf, async (req, res) => {
 
 // GET /api/resumes/:id/versions/:versionNo/file -> download one of MY PDFs
 router.get("/:id/versions/:versionNo/file", async (req, res) => {
-  const resume = await findOwnResume(req);
-  const versionNo = Number(req.params.versionNo);
-  if (!resume || !Number.isInteger(versionNo)) return res.status(404).json({ error: "File not found" });
-  const version = await ResumeVersion.findOne({ resumeId: resume._id, studentId: req.studentId, versionNo });
+  const version = await findOwnVersion(req);
   if (!version) return res.status(404).json({ error: "File not found" });
 
   const file = pdfPath(req.studentId, version.storedName);
@@ -140,6 +157,21 @@ router.get("/:id/versions/:versionNo/file", async (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", 'inline; filename="resume.pdf"');
   fs.createReadStream(file).pipe(res);
+});
+
+// GET .../versions/:versionNo/extraction -> the cleaned text and sections the reader found
+router.get("/:id/versions/:versionNo/extraction", async (req, res) => {
+  const version = await findOwnVersion(req, "+extraction.text +extraction.sections");
+  if (!version) return res.status(404).json({ error: "Resume version not found" });
+  res.json({ extraction: extractionDetail(version.extraction) });
+});
+
+// POST .../versions/:versionNo/extract -> read the PDF text again (for old uploads or after a failure)
+router.post("/:id/versions/:versionNo/extract", async (req, res) => {
+  const version = await findOwnVersion(req);
+  if (!version) return res.status(404).json({ error: "Resume version not found" });
+  await extractResumeVersion(version);
+  res.json({ extraction: extractionSummary(version.extraction) });
 });
 
 // PATCH /api/resumes/:id -> rename / change target role

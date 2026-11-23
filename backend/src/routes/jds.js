@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const requireAuth = require("../middleware/auth");
 const JobDescription = require("../models/JobDescription");
 const { receivePdf, isRealPdf, savePdf, pdfPath, deletePdf } = require("../utils/pdfUpload");
+const { extractJd, extractionSummary, extractionDetail } = require("../services/extraction");
 
 const router = express.Router();
 router.use(requireAuth); // every JD route needs a login
@@ -34,7 +35,7 @@ function jdView(jd, { full = false } = {}) {
     title: jd.title,
     organization: jd.organization,
     source: jd.source,
-    extractionStatus: jd.extractionStatus,
+    extraction: extractionSummary(jd.extraction),
     originalFileName: jd.originalFileName,
     fileSize: jd.fileSize,
     createdAt: jd.createdAt,
@@ -69,7 +70,6 @@ router.post("/", receivePdf, async (req, res) => {
       saved = savePdf(req.studentId, req.file.buffer, KIND);
       Object.assign(doc, {
         source: "pdf",
-        extractionStatus: "pending", // Phase 5 will read the text
         originalFileName: String(req.file.originalname || "job.pdf").slice(0, 200),
         storedName: saved.storedName,
         fileSize: req.file.size,
@@ -78,10 +78,11 @@ router.post("/", receivePdf, async (req, res) => {
     } else {
       if (text.length < MIN_TEXT) return res.status(400).json({ error: `The job description is too short (at least ${MIN_TEXT} characters)` });
       if (text.length > MAX_TEXT) return res.status(400).json({ error: `The job description is too long (max ${MAX_TEXT} characters)` });
-      Object.assign(doc, { source: "text", extractionStatus: "not_needed", text });
+      Object.assign(doc, { source: "text", text });
     }
 
     const jd = await JobDescription.create(doc);
+    await extractJd(jd); // read text and find sections now; never throws (a failure is saved on the JD)
     res.status(201).json({ jd: jdView(jd, { full: true }) });
   } catch (err) {
     if (saved) deletePdf(req.studentId, saved.storedName, KIND); // don't leave an orphan file
@@ -112,6 +113,23 @@ router.get("/:id/file", async (req, res) => {
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", 'inline; filename="job-description.pdf"');
   fs.createReadStream(file).pipe(res);
+});
+
+// GET /api/jds/:id/extraction -> the cleaned text and sections the reader found
+router.get("/:id/extraction", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ error: "Job description not found" });
+  const jd = await JobDescription.findOne({ _id: req.params.id, studentId: req.studentId })
+    .select("+extraction.text +extraction.sections");
+  if (!jd) return res.status(404).json({ error: "Job description not found" });
+  res.json({ extraction: extractionDetail(jd.extraction) });
+});
+
+// POST /api/jds/:id/extract -> read the text again (for old JDs or after a failure)
+router.post("/:id/extract", async (req, res) => {
+  const jd = await findOwnJd(req);
+  if (!jd) return res.status(404).json({ error: "Job description not found" });
+  await extractJd(jd);
+  res.json({ extraction: extractionSummary(jd.extraction) });
 });
 
 // PATCH /api/jds/:id -> change title / organization only (the text never changes)

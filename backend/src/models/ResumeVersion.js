@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const extractionSchema = require("./extractionSchema");
 
 // One uploaded PDF. Versions are never edited: a new upload = a new version.
 // Later phases (extraction, analysis) will point at a specific version.
@@ -12,6 +13,8 @@ const resumeVersionSchema = new mongoose.Schema(
     fileSize: { type: Number, required: true },
     fileHash: { type: String, required: true },         // SHA-256, detects identical files
     uploadedAt: { type: Date, default: Date.now },
+    // What the text reader found in this PDF (filled right after upload)
+    extraction: { type: extractionSchema, default: () => ({}) },
   },
   { timestamps: false }
 );

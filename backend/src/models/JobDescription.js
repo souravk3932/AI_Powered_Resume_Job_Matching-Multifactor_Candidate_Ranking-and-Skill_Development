@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const extractionSchema = require("./extractionSchema");
 
 // A job description (JD) saved by a student. It is never edited after saving
 // (only the title/organization can change), because later analyses will point
@@ -11,10 +12,10 @@ const jobDescriptionSchema = new mongoose.Schema(
 
     source: { type: String, enum: ["text", "pdf"], required: true },
 
-    // Pasted JDs store their text now. PDF JDs get their text in Phase 5
-    // (Python extraction), so for them this stays empty until then.
+    // The text the student pasted (empty for PDF JDs; their text is in extraction.text)
     text: { type: String, default: "", maxlength: 20000 },
-    extractionStatus: { type: String, enum: ["not_needed", "pending"], required: true },
+    // What the text reader found (cleaned text + sections), filled right after saving
+    extraction: { type: extractionSchema, default: () => ({}) },
 
     // Only for source = "pdf"
     originalFileName: { type: String, maxlength: 200 },
