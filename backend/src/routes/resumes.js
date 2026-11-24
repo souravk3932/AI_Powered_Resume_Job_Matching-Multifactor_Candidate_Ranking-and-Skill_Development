@@ -6,6 +6,7 @@ const Resume = require("../models/Resume");
 const ResumeVersion = require("../models/ResumeVersion");
 const { receivePdf, isRealPdf, savePdf, pdfPath, deletePdf } = require("../utils/pdfUpload");
 const { extractResumeVersion, extractionSummary, extractionDetail } = require("../services/extraction");
+const { analyzeResumeVersion, profileSummary, profileDetail } = require("../services/profile");
 
 const router = express.Router();
 router.use(requireAuth); // every resume route needs a login
@@ -63,6 +64,7 @@ function versionView(v) {
     fileSize: v.fileSize,
     uploadedAt: v.uploadedAt,
     extraction: extractionSummary(v.extraction),
+    profile: profileSummary(v.profile),
   };
 }
 
@@ -172,6 +174,21 @@ router.post("/:id/versions/:versionNo/extract", async (req, res) => {
   if (!version) return res.status(404).json({ error: "Resume version not found" });
   await extractResumeVersion(version);
   res.json({ extraction: extractionSummary(version.extraction) });
+});
+
+// GET .../versions/:versionNo/profile -> the skills, education, projects... the AI found (with quotes and statuses)
+router.get("/:id/versions/:versionNo/profile", async (req, res) => {
+  const version = await findOwnVersion(req, "+profile.data");
+  if (!version) return res.status(404).json({ error: "Resume version not found" });
+  res.json({ profile: profileDetail(version.profile) });
+});
+
+// POST .../versions/:versionNo/profile -> ask the AI to understand this resume (can be repeated)
+router.post("/:id/versions/:versionNo/profile", async (req, res) => {
+  const version = await findOwnVersion(req, "+extraction.text +profile.data");
+  if (!version) return res.status(404).json({ error: "Resume version not found" });
+  await analyzeResumeVersion(version);
+  res.json({ profile: profileSummary(version.profile) });
 });
 
 // PATCH /api/resumes/:id -> rename / change target role

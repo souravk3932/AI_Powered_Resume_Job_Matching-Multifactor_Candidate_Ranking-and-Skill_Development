@@ -31,12 +31,13 @@ class LlmError(Exception):
 
     def __init__(self, kind: str, user_message: str):
         super().__init__(user_message)
-        self.kind = kind  # not_configured | auth | rate_limited | unreachable | bad_output | provider_error
+        self.kind = kind  # not_configured | auth | rate_limited | unreachable | bad_output | too_long | provider_error
         self.user_message = user_message
 
 
 # ---------- provider adapter: Groq ----------
-def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, schema: dict) -> str:
+def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, schema: dict,
+               max_output_tokens: int) -> str:
     """Ask Groq and return the raw text. Translates Groq errors into LlmError."""
     client = groq.Groq(api_key=settings.api_key, timeout=settings.timeout_seconds, max_retries=2)
 
@@ -51,12 +52,19 @@ def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, 
         response_format = {"type": "json_object"}
         system_text = f"{system}\n\nReturn ONLY JSON that matches this schema:\n{json.dumps(schema)}"
 
+    extra: dict = {}
+    if settings.model.startswith("openai/gpt-oss"):
+        # These models "think" before answering. Low effort saves tokens, and we do not need the thoughts.
+        extra = {"reasoning_effort": "low", "include_reasoning": False}
+
     try:
         reply = client.chat.completions.create(
             model=settings.model,
             messages=[{"role": "system", "content": system_text}, {"role": "user", "content": user}],
             response_format=response_format,
             temperature=0,  # same input -> as-similar-as-possible output
+            max_completion_tokens=max_output_tokens,  # Groq's default is only 1024: too small for a resume profile
+            **extra,
         )
     except groq.AuthenticationError as exc:
         raise LlmError("auth", "Groq rejected the API key. Check GROQ_API_KEY in ai-service/.env.") from exc
@@ -71,7 +79,11 @@ def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, 
         log.warning("groq error status=%s", exc.status_code)  # status only: never log keys or prompts
         raise LlmError("provider_error", f"Groq returned an error (status {exc.status_code}).") from exc
 
-    return reply.choices[0].message.content or ""
+    choice = reply.choices[0]
+    if getattr(choice, "finish_reason", None) == "length":
+        # The model ran out of room: the JSON is cut off, and asking again with the same limit will not help
+        raise LlmError("too_long", "The answer was cut off because the document is too long or detailed.")
+    return choice.message.content or ""
 
 
 PROVIDERS: dict[str, Callable[..., str]] = {"groq": _call_groq}
@@ -84,6 +96,7 @@ def generate_json(
     schema: dict,
     schema_name: str,
     validate_with: type[BaseModel] | None = None,
+    max_output_tokens: int = 2048,
 ) -> dict:
     """Ask the LLM for JSON and return it as a Python dict.
 
@@ -103,7 +116,7 @@ def generate_json(
 
     for attempt in range(1, settings.max_attempts + 1):
         try:
-            text = call(settings, system, user, schema_name, schema)
+            text = call(settings, system, user, schema_name, schema, max_output_tokens)
         except LlmError as err:
             if err.kind == "bad_output" and attempt < settings.max_attempts:
                 last_problem = err.user_message

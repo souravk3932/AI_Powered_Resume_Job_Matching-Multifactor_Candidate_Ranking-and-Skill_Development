@@ -13,14 +13,14 @@ class AiServiceError extends Error {
   }
 }
 
-async function call(path, init) {
+async function call(path, init, timeoutMs = TIMEOUT_MS) {
   const base = process.env.AI_SERVICE_URL || "http://localhost:8000";
   let res;
   try {
     res = await fetch(`${base}${path}`, {
       ...init,
       headers: { ...(init.headers || {}), "X-Service-Key": process.env.AI_SERVICE_KEY || "" },
-      signal: AbortSignal.timeout(TIMEOUT_MS), // never wait forever
+      signal: AbortSignal.timeout(timeoutMs), // never wait forever
     });
   } catch (err) {
     throw new AiServiceError(
@@ -32,13 +32,14 @@ async function call(path, init) {
   const body = await res.json().catch(() => ({}));
   if (res.ok) return body;
 
-  if (res.status === 401 || res.status === 503) {
+  if (res.status === 401) {
     throw new AiServiceError(
       "The AI service key is missing or does not match. Check AI_SERVICE_KEY in backend/.env and ai-service/.env.",
       `status ${res.status}`
     );
   }
-  // 400/413/422 carry a readable message from the AI service (for example "password-protected")
+  // 400/413/422/429/502/503 carry a readable message written by the AI service
+  // (for example "password-protected", "too many requests", "GROQ_API_KEY is not set")
   const message = typeof body.detail === "string" ? body.detail : "The text reader could not process this file.";
   throw new AiServiceError(message, `status ${res.status}`);
 }
@@ -60,4 +61,13 @@ function analyzeText(text, docType) {
   });
 }
 
-module.exports = { extractPdf, analyzeText, AiServiceError };
+// Resume text -> structured profile (skills, education...). The LLM can take a while, so allow 90 seconds.
+function extractProfile(text) {
+  return call(
+    "/internal/extract/profile",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) },
+    90000
+  );
+}
+
+module.exports = { extractPdf, analyzeText, extractProfile, AiServiceError };

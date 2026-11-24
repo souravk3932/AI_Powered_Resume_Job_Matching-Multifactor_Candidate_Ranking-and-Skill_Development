@@ -25,6 +25,10 @@ class ExtractionResult(BaseModel):
     extractor_version: str
 
 
+class ProfileRequest(BaseModel):
+    text: str = Field(min_length=20, max_length=60000)  # cleaned resume text
+
+
 class TextRequest(BaseModel):
     text: str = Field(min_length=1, max_length=60000)
     doc_type: DocType

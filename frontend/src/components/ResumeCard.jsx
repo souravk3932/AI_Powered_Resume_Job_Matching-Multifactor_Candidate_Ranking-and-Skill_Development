@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { api, openPdf } from "../lib/api";
 import ExtractionPanel from "./ExtractionPanel";
+import ProfilePanel from "./ProfilePanel";
 import Field, { ErrorNote } from "./Field";
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -99,6 +100,15 @@ export default function ResumeCard({ resume, onChanged }) {
           key={`${resume.id}-${resume.currentVersionNo}`}
           path={`/resumes/${resume.id}/versions/${resume.currentVersionNo}`}
           extraction={current.extraction}
+          onChanged={onChanged}
+        />
+      )}
+      {current && !editing && (
+        <ProfilePanel
+          key={`profile-${resume.id}-${resume.currentVersionNo}`}
+          path={`/resumes/${resume.id}/versions/${resume.currentVersionNo}`}
+          textReady={current.extraction.status === "done"}
+          profile={current.profile}
           onChanged={onChanged}
         />
       )}

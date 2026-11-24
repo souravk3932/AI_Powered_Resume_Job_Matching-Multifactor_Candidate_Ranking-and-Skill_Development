@@ -37,6 +37,8 @@ class FakeGroq:
         item = FakeGroq.outputs.pop(0)
         if isinstance(item, Exception):
             raise item
+        if isinstance(item, SimpleNamespace):  # a ready-made reply (for example one with finish_reason)
+            return item
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=item))])
 
 
@@ -94,6 +96,29 @@ def test_other_models_use_json_object_and_describe_schema(monkeypatch):
     sent = FakeGroq.calls[0]
     assert sent["response_format"] == {"type": "json_object"}
     assert "skills" in sent["messages"][0]["content"]  # schema is explained in the prompt
+
+
+def test_output_limit_and_low_reasoning_are_sent():
+    FakeGroq.outputs = ['{"skills": []}']
+    generate_json("sys", "user", SCHEMA, "x", max_output_tokens=3000)
+    sent = FakeGroq.calls[0]
+    assert sent["max_completion_tokens"] == 3000       # Groq's default (1024) would cut a resume profile off
+    assert sent["reasoning_effort"] == "low" and sent["include_reasoning"] is False
+
+
+def test_reasoning_options_only_for_models_that_support_them(monkeypatch):
+    monkeypatch.setenv("LLM_MODEL", "qwen/qwen3.8-27b")
+    FakeGroq.outputs = ['{"skills": []}']
+    ask()
+    assert "reasoning_effort" not in FakeGroq.calls[0]
+
+
+def test_answer_cut_off_by_the_limit_is_reported_not_retried():
+    cut = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"skills": ["Pyt'), finish_reason="length")])
+    FakeGroq.outputs = [cut]
+    with pytest.raises(LlmError) as err:
+        ask()
+    assert err.value.kind == "too_long" and len(FakeGroq.calls) == 1
 
 
 def test_key_is_never_inside_the_prompt():

@@ -16,6 +16,7 @@ STATUS_FOR = {
     "rate_limited": 429,
     "unreachable": 502,
     "bad_output": 502,
+    "too_long": 502,
     "provider_error": 502,
 }
 

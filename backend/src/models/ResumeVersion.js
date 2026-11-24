@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const extractionSchema = require("./extractionSchema");
+const profileSchema = require("./profileSchema");
 
 // One uploaded PDF. Versions are never edited: a new upload = a new version.
 // Later phases (extraction, analysis) will point at a specific version.
@@ -15,6 +16,8 @@ const resumeVersionSchema = new mongoose.Schema(
     uploadedAt: { type: Date, default: Date.now },
     // What the text reader found in this PDF (filled right after upload)
     extraction: { type: extractionSchema, default: () => ({}) },
+    // What the AI understood from the text: skills, education, projects... (claims + quotes, not verified facts)
+    profile: { type: profileSchema, default: () => ({}) },
   },
   { timestamps: false }
 );

@@ -1,10 +1,13 @@
 """Internal endpoints used by the Node backend (never by browsers)."""
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
+from app.api.llm import STATUS_FOR
 from app.extraction.cleaning import clean_text
 from app.extraction.pdf_reader import PdfReadError, extract_pdf_text
+from app.extraction.profile import extract_resume_profile
 from app.extraction.sections import find_sections
-from app.schemas import DocType, ExtractionResult, TextRequest
+from app.llm.client import LlmError
+from app.schemas import DocType, ExtractionResult, ProfileRequest, TextRequest
 from app.security import require_service_key
 
 EXTRACTOR_VERSION = "text-v1"
@@ -54,6 +57,16 @@ def extract_document(doc_type: DocType = Form(...), file: UploadFile = File(...)
     except PdfReadError as err:
         raise HTTPException(status_code=422, detail=str(err)) from err
     return _build_result(meta["text"], doc_type, meta)
+
+
+@router.post("/extract/profile")
+def extract_profile(body: ProfileRequest):
+    """Resume text -> structured profile (skills, education, experience...) using the LLM.
+    Every claim is checked against the text; nothing here is a score."""
+    try:
+        return extract_resume_profile(body.text)
+    except LlmError as err:
+        raise HTTPException(status_code=STATUS_FOR.get(err.kind, 502), detail=err.user_message) from err
 
 
 @router.post("/analyze/text", response_model=ExtractionResult)
