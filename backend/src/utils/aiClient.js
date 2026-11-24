@@ -61,13 +61,24 @@ function analyzeText(text, docType) {
   });
 }
 
-// Resume text -> structured profile (skills, education...). The LLM can take a while, so allow 90 seconds.
-function extractProfile(text) {
+// Text -> structured profile. kind is "resume" (skills, education...) or "jd" (required skills, responsibilities...).
+// The LLM can take a while, so allow 90 seconds.
+function extractProfile(text, kind = "resume") {
   return call(
-    "/internal/extract/profile",
+    kind === "jd" ? "/internal/extract/jd-profile" : "/internal/extract/profile",
     { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) },
     90000
   );
 }
 
-module.exports = { extractPdf, analyzeText, extractProfile, AiServiceError };
+// Match a resume profile with a job description profile (skills only). The first call loads the
+// Sentence Transformers model, so allow 90 seconds.
+function matchSkills(resume, jd) {
+  return call(
+    "/internal/match/skills",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resume, jd }) },
+    90000
+  );
+}
+
+module.exports = { extractPdf, analyzeText, extractProfile, matchSkills, AiServiceError };

@@ -41,21 +41,26 @@ function toFailed(err) {
   };
 }
 
-// `version` must be loaded with "+extraction.text". Never throws: a failure is saved so the student can retry.
-async function analyzeResumeVersion(version) {
-  const text = version.extraction?.text;
-  if (version.extraction?.status !== "done" || !text) {
-    version.profile = toFailed(new AiServiceError("Read the resume text first, then analyse it.", "no text"));
+// `doc` (a resume version or a job description) must be loaded with "+extraction.text".
+// kind is "resume" or "jd". Never throws: a failure is saved so the student can retry.
+async function analyzeDocument(doc, kind) {
+  const text = doc.extraction?.text;
+  if (doc.extraction?.status !== "done" || !text) {
+    const what = kind === "jd" ? "job description" : "resume";
+    doc.profile = toFailed(new AiServiceError(`Read the ${what} text first, then analyse it.`, "no text"));
   } else {
     try {
-      version.profile = toStored(await runOneAtATime(() => extractProfile(text)));
+      doc.profile = toStored(await runOneAtATime(() => extractProfile(text, kind)));
     } catch (err) {
-      version.profile = toFailed(err);
+      doc.profile = toFailed(err);
     }
   }
-  await version.save();
-  return version;
+  await doc.save();
+  return doc;
 }
+
+const analyzeResumeVersion = (version) => analyzeDocument(version, "resume");
+const analyzeJd = (jd) => analyzeDocument(jd, "jd");
 
 // Small summary for lists (no big data)
 function profileSummary(p) {
@@ -79,4 +84,4 @@ function profileDetail(p) {
   return { ...profileSummary(p), data: p?.data || {} };
 }
 
-module.exports = { analyzeResumeVersion, profileSummary, profileDetail };
+module.exports = { analyzeResumeVersion, analyzeJd, profileSummary, profileDetail };

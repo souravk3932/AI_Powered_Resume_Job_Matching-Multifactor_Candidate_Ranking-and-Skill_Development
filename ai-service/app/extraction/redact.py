@@ -51,7 +51,8 @@ def _guess_name(text: str) -> str | None:
     return None
 
 
-def redact(text: str) -> Redaction:
+def redact(text: str, hide_name: bool = True) -> Redaction:
+    """hide_name=False for job descriptions: their first line is a job title, not a person's name."""
     result = Redaction(text=text)
 
     def swap(pattern, label):
@@ -71,7 +72,7 @@ def redact(text: str) -> Redaction:
     swap(_URL, "LINK")
     swap(_PHONE, "PHONE")
 
-    name = _guess_name(result.text)
+    name = _guess_name(result.text) if hide_name else None
     if name:
         result.mapping["[NAME]"] = name
         result.text = re.sub(re.escape(name), "[NAME]", result.text, flags=re.IGNORECASE)

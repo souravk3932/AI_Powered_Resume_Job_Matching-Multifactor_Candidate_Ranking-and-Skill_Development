@@ -21,6 +21,7 @@ class LlmSettings:
     api_key: str
     timeout_seconds: float
     max_attempts: int  # how many times we ask again when the JSON is invalid
+    reasoning_effort: str  # low | medium | high: how hard "thinking" models try (more = slower, more tokens)
 
 
 def _number(name: str, default: float, low: float, high: float) -> float:
@@ -34,10 +35,16 @@ def _number(name: str, default: float, low: float, high: float) -> float:
 def load_settings() -> LlmSettings:
     """Read settings each time, so a changed .env is picked up after a restart."""
     provider = os.getenv("LLM_PROVIDER", DEFAULT_PROVIDER).strip().lower()
+    # "medium" by default: on real job descriptions, "low" sometimes skipped whole categories or
+    # listed skills the text said were NOT required.
+    effort = os.getenv("LLM_REASONING_EFFORT", "medium").strip().lower()
+    if effort not in ("low", "medium", "high"):
+        effort = "medium"
     return LlmSettings(
         provider=provider,
         model=os.getenv("LLM_MODEL", DEFAULT_MODEL).strip(),
         api_key=os.getenv(f"{provider.upper()}_API_KEY", "").strip(),
         timeout_seconds=_number("LLM_TIMEOUT_SECONDS", 30, 5, 120),
         max_attempts=int(_number("LLM_MAX_ATTEMPTS", 2, 1, 4)),
+        reasoning_effort=effort,
     )

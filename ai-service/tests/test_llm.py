@@ -103,7 +103,27 @@ def test_output_limit_and_low_reasoning_are_sent():
     generate_json("sys", "user", SCHEMA, "x", max_output_tokens=3000)
     sent = FakeGroq.calls[0]
     assert sent["max_completion_tokens"] == 3000       # Groq's default (1024) would cut a resume profile off
-    assert sent["reasoning_effort"] == "low" and sent["include_reasoning"] is False
+    assert sent["reasoning_effort"] == "medium" and sent["include_reasoning"] is False   # the default
+
+
+def test_reasoning_effort_can_be_changed_and_bad_values_fall_back(monkeypatch):
+    for value, expected in [("high", "high"), ("LOW", "low"), ("turbo", "medium")]:
+        monkeypatch.setenv("LLM_REASONING_EFFORT", value)
+        FakeGroq.outputs, FakeGroq.calls = ['{"skills": []}'], []
+        ask()
+        assert FakeGroq.calls[0]["reasoning_effort"] == expected
+
+
+def test_caller_can_choose_the_effort():
+    FakeGroq.outputs = ['{"skills": []}']
+    generate_json("sys", "user", SCHEMA, "x", reasoning_effort="low")
+    assert FakeGroq.calls[0]["reasoning_effort"] == "low"
+
+
+def test_retry_after_a_failed_attempt_steps_down_to_low_effort():
+    FakeGroq.outputs = ["not json", '{"skills": ["Go"]}']
+    generate_json("sys", "user", SCHEMA, "x", reasoning_effort="high")
+    assert [c["reasoning_effort"] for c in FakeGroq.calls] == ["high", "low"]
 
 
 def test_reasoning_options_only_for_models_that_support_them(monkeypatch):

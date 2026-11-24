@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.api.llm import STATUS_FOR
 from app.extraction.cleaning import clean_text
 from app.extraction.pdf_reader import PdfReadError, extract_pdf_text
+from app.extraction.jd_profile import extract_jd_profile
 from app.extraction.profile import extract_resume_profile
 from app.extraction.sections import find_sections
 from app.llm.client import LlmError
@@ -65,6 +66,15 @@ def extract_profile(body: ProfileRequest):
     Every claim is checked against the text; nothing here is a score."""
     try:
         return extract_resume_profile(body.text)
+    except LlmError as err:
+        raise HTTPException(status_code=STATUS_FOR.get(err.kind, 502), detail=err.user_message) from err
+
+
+@router.post("/extract/jd-profile")
+def extract_jd_profile_endpoint(body: ProfileRequest):
+    """Job description text -> required/preferred skills, responsibilities... (claims with quotes)."""
+    try:
+        return extract_jd_profile(body.text)
     except LlmError as err:
         raise HTTPException(status_code=STATUS_FOR.get(err.kind, 502), detail=err.user_message) from err
 

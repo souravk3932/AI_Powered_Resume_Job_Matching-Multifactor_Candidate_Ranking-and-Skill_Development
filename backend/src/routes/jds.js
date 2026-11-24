@@ -5,6 +5,7 @@ const requireAuth = require("../middleware/auth");
 const JobDescription = require("../models/JobDescription");
 const { receivePdf, isRealPdf, savePdf, pdfPath, deletePdf } = require("../utils/pdfUpload");
 const { extractJd, extractionSummary, extractionDetail } = require("../services/extraction");
+const { analyzeJd, profileSummary, profileDetail } = require("../services/profile");
 
 const router = express.Router();
 router.use(requireAuth); // every JD route needs a login
@@ -36,6 +37,7 @@ function jdView(jd, { full = false } = {}) {
     organization: jd.organization,
     source: jd.source,
     extraction: extractionSummary(jd.extraction),
+    profile: profileSummary(jd.profile),
     originalFileName: jd.originalFileName,
     fileSize: jd.fileSize,
     createdAt: jd.createdAt,
@@ -130,6 +132,24 @@ router.post("/:id/extract", async (req, res) => {
   if (!jd) return res.status(404).json({ error: "Job description not found" });
   await extractJd(jd);
   res.json({ extraction: extractionSummary(jd.extraction) });
+});
+
+// GET /api/jds/:id/profile -> required skills, responsibilities... the AI found (with quotes and statuses)
+router.get("/:id/profile", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ error: "Job description not found" });
+  const jd = await JobDescription.findOne({ _id: req.params.id, studentId: req.studentId }).select("+profile.data");
+  if (!jd) return res.status(404).json({ error: "Job description not found" });
+  res.json({ profile: profileDetail(jd.profile) });
+});
+
+// POST /api/jds/:id/profile -> ask the AI to understand this job description (can be repeated)
+router.post("/:id/profile", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ error: "Job description not found" });
+  const jd = await JobDescription.findOne({ _id: req.params.id, studentId: req.studentId })
+    .select("+extraction.text +profile.data");
+  if (!jd) return res.status(404).json({ error: "Job description not found" });
+  await analyzeJd(jd);
+  res.json({ profile: profileSummary(jd.profile) });
 });
 
 // PATCH /api/jds/:id -> change title / organization only (the text never changes)

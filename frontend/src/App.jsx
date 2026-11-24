@@ -3,6 +3,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Analyses from "./pages/Analyses";
 import JobDescriptions from "./pages/JobDescriptions";
 import Resumes from "./pages/Resumes";
 
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/resumes" element={<ProtectedRoute><Resumes /></ProtectedRoute>} />
       <Route path="/jobs" element={<ProtectedRoute><JobDescriptions /></ProtectedRoute>} />
+      <Route path="/analyses" element={<ProtectedRoute><Analyses /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );

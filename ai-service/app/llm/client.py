@@ -37,7 +37,7 @@ class LlmError(Exception):
 
 # ---------- provider adapter: Groq ----------
 def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, schema: dict,
-               max_output_tokens: int) -> str:
+               max_output_tokens: int, effort: str) -> str:
     """Ask Groq and return the raw text. Translates Groq errors into LlmError."""
     client = groq.Groq(api_key=settings.api_key, timeout=settings.timeout_seconds, max_retries=2)
 
@@ -54,8 +54,8 @@ def _call_groq(settings: LlmSettings, system: str, user: str, schema_name: str, 
 
     extra: dict = {}
     if settings.model.startswith("openai/gpt-oss"):
-        # These models "think" before answering. Low effort saves tokens, and we do not need the thoughts.
-        extra = {"reasoning_effort": "low", "include_reasoning": False}
+        # These models "think" before answering. We never need the thoughts themselves, so they are not returned.
+        extra = {"reasoning_effort": effort, "include_reasoning": False}
 
     try:
         reply = client.chat.completions.create(
@@ -97,6 +97,7 @@ def generate_json(
     schema_name: str,
     validate_with: type[BaseModel] | None = None,
     max_output_tokens: int = 2048,
+    reasoning_effort: str | None = None,
 ) -> dict:
     """Ask the LLM for JSON and return it as a Python dict.
 
@@ -116,7 +117,12 @@ def generate_json(
 
     for attempt in range(1, settings.max_attempts + 1):
         try:
-            text = call(settings, system, user, schema_name, schema, max_output_tokens)
+            # Best effort for each task is set by the caller (default from .env). If an attempt fails, the
+            # retry uses "low": over-thinking was the cause of failures we measured on real resumes.
+            effort = reasoning_effort or settings.reasoning_effort
+            if attempt > 1:
+                effort = "low"
+            text = call(settings, system, user, schema_name, schema, max_output_tokens, effort)
         except LlmError as err:
             if err.kind == "bad_output" and attempt < settings.max_attempts:
                 last_problem = err.user_message

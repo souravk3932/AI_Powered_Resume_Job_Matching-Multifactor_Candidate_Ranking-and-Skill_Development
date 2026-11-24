@@ -135,6 +135,8 @@ MUST_APPEAR = {
     "technical_skills": ["name"], "soft_skills": ["name"],
     "education": ["institution"], "experience": ["organization"],
     "projects": ["title"], "certifications": ["name"], "funding": ["source"],
+    # job description categories (see jd_profile.py)
+    "required_skills": ["name"], "preferred_skills": ["name"], "competencies": ["name"],
 }
 
 SYSTEM_PROMPT = """You extract facts from ONE resume into JSON. Follow these rules strictly.
@@ -172,15 +174,17 @@ def _check_item(category: str, item: dict, source_norm: str) -> tuple[str, str]:
     return "supported", ""
 
 
-def _verify(raw: dict, source_text: str) -> tuple[dict, list[str]]:
+def _verify(raw: dict, source_text: str, categories: list[str] | None = None,
+            dedupe: tuple = ("technical_skills", "soft_skills")) -> tuple[dict, list[str]]:
+    """Check every item against the text. Shared by resumes and job descriptions."""
     source_norm = _norm(source_text)
     profile: dict[str, list] = {}
     warnings: list[str] = []
-    for category in CATEGORIES:
+    for category in categories or CATEGORIES:
         seen: set[str] = set()
         kept = []
         for item in raw[category][:MAX_ITEMS_PER_CATEGORY]:
-            if category in ("technical_skills", "soft_skills"):
+            if category in dedupe:
                 key = item["name"].strip().lower()
                 if key in seen:
                     continue  # same skill listed twice
@@ -210,6 +214,9 @@ def extract_resume_profile(text: str) -> dict:
         schema_name="resume_profile",
         validate_with=RawProfile,
         max_output_tokens=4096,
+        # "low" on purpose: on real resumes, medium/high effort made the model over-think and run out of
+        # tokens before writing the JSON (measured: fails even with 7,000 tokens; low needs about 1,000).
+        reasoning_effort="low",
     )
     profile, verify_warnings = _verify(raw, hidden.text)   # verify against the text the model actually saw
     profile = hidden.restore(profile)                      # then put real values back, for the student only

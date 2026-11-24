@@ -90,7 +90,7 @@ def test_pydantic_rejects_bad_kind():
 def fake_llm(monkeypatch):
     calls = []
 
-    def fake(system, user, schema, schema_name, validate_with=None, max_output_tokens=2048):
+    def fake(system, user, schema, schema_name, validate_with=None, max_output_tokens=2048, reasoning_effort=None):
         calls.append({"system": system, "user": user, "max": max_output_tokens})
         return fake.answer
 

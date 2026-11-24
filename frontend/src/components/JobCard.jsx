@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, openPdf } from "../lib/api";
 import ExtractionPanel from "./ExtractionPanel";
+import ProfilePanel from "./ProfilePanel";
 import Field, { ErrorNote } from "./Field";
 
 const smallBtn = "rounded-lg border border-line px-3 py-1.5 text-sm font-medium hover:bg-paper disabled:opacity-60";
@@ -84,6 +85,10 @@ export default function JobCard({ jd, onChanged }) {
       )}
 
       {!editing && <ExtractionPanel path={`/jds/${jd.id}`} extraction={jd.extraction} onChanged={onChanged} />}
+      {!editing && (
+        <ProfilePanel kind="jd" path={`/jds/${jd.id}`} textReady={jd.extraction.status === "done"}
+          profile={jd.profile} onChanged={onChanged} />
+      )}
 
       <div className="mt-4 space-y-3">
         <ErrorNote>{error}</ErrorNote>

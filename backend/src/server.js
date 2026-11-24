@@ -17,6 +17,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/profile", require("./routes/profile"));
 app.use("/api/resumes", require("./routes/resumes"));
 app.use("/api/jds", require("./routes/jds"));
+app.use("/api/analyses", require("./routes/analyses"));
 
 // Health check: a simple "are you alive?" route
 app.get("/api/health", (req, res) => {

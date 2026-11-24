@@ -19,6 +19,7 @@ export default function AppHeader() {
             <NavLink to="/dashboard" className={linkClass}>Profile</NavLink>
             <NavLink to="/resumes" className={linkClass}>Resumes</NavLink>
             <NavLink to="/jobs" className={linkClass}>Jobs</NavLink>
+            <NavLink to="/analyses" className={linkClass}>Compare</NavLink>
           </nav>
         </div>
         <div className="flex items-center gap-4">
