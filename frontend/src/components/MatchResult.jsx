@@ -53,7 +53,9 @@ function Row({ item }) {
   );
 }
 
-export default function MatchResult({ analysis }) {
+import ScorePanel from "./ScorePanel";
+
+export default function MatchResult({ analysis, roles = [], onRescore, rescoring, rescoreError }) {
   const skills = analysis.skillMatch?.skills || [];
   const notUsed = analysis.skillMatch?.not_used || {};
   const unverified = [...(notUsed.resume_items_needing_review || []), ...(notUsed.job_items_needing_review || [])];
@@ -69,6 +71,9 @@ export default function MatchResult({ analysis }) {
         </p>
       </div>
 
+      <ScorePanel analysis={analysis} roles={roles} onRescore={onRescore} busy={rescoring} error={rescoreError} />
+
+      <h3 className="font-display text-lg font-bold">Skill match</h3>
       <div className="grid gap-2 sm:grid-cols-3">
         {GROUPS.map(([key, label]) => {
           const c = analysis.summary?.[key] || { total: 0, matched: 0, partial: 0, missing: 0 };

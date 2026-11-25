@@ -218,3 +218,17 @@ def test_completeness_does_not_turn_a_duty_into_a_required_soft_skill():
     p = empty_profile()
     completeness_check("What you will do\n- Review code and mentor junior engineers\n- Lead team meetings\nRequirements\n- Strong communication skills\n", p)
     assert names(p, "soft_skills") == ["Communication"]        # "mentor" and "lead" are duties here, not required skills
+
+
+def test_completeness_rescues_a_skill_the_ai_listed_with_a_quote_that_did_not_verify():
+    """Found on a real run: the AI named Python but its quote did not match the text, so the item was flagged
+    'needs_review' and ignored by matching, yet the check believed Python was already covered."""
+    from app.extraction.jd_profile import completeness_check
+    p = empty_profile()
+    p["required_skills"].append({"name": "Python", "quote": "Strong Python expertise required", "status": "needs_review", "note": "quote not found"})
+    p["required_skills"].append({"name": "Docker", "quote": "experience with Docker", "status": "supported", "note": ""})
+    added = completeness_check(ZEN, p)
+    python_items = [i for i in p["required_skills"] if i["name"] == "Python"]
+    assert len(python_items) == 1 and python_items[0]["status"] == "supported" and python_items[0].get("origin") == "rule"   # replaced, not duplicated
+    assert sum(1 for i in p["required_skills"] if i["name"] == "Docker") == 1                                              # a verified item is left alone
+    assert added > 0

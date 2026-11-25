@@ -81,4 +81,18 @@ function matchSkills(resume, jd) {
   );
 }
 
-module.exports = { extractPdf, analyzeText, extractProfile, matchSkills, AiServiceError };
+// The scoring engine: pure rules, so it is quick. payload = { resume, jd, match, role_profile, job_title }
+function scoreEvaluate(payload) {
+  return call(
+    "/internal/score/evaluate",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+    30000
+  );
+}
+
+// The role profiles and their weights (for the role chooser)
+function scoreRoles() {
+  return call("/internal/score/roles", {});
+}
+
+module.exports = { extractPdf, analyzeText, extractProfile, matchSkills, scoreEvaluate, scoreRoles, AiServiceError };

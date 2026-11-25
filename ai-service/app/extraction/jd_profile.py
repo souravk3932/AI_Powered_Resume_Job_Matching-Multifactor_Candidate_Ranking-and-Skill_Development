@@ -94,8 +94,11 @@ def completeness_check(text: str, profile: dict, catalog=None) -> int:
     Responsibilities sections and add known skills the AI did not list. Each added item quotes the real line
     and is marked origin="rule". Returns how many were added. Works only on text we can verify."""
     catalog = catalog or get_catalog()
-    listed = {catalog.lookup(i["name"]) or normalise(i["name"])
-              for c in ("required_skills", "preferred_skills", "soft_skills") for i in profile[c]}
+    lists = ("required_skills", "preferred_skills", "soft_skills")
+    key = lambda name: catalog.lookup(name) or normalise(name)  # noqa: E731
+    # Only VERIFIED items count as "already listed". An unverified item is ignored by the matcher, so if the
+    # AI listed a skill but its quote did not match, the skill would otherwise disappear from the comparison.
+    listed = {key(i["name"]) for c in lists for i in profile[c] if i.get("status") == "supported"}
     added = 0
     for section in find_sections(text, "jd")["sections"]:
         if section["name"] not in ("requirements", "preferred", "responsibilities"):
@@ -111,6 +114,8 @@ def completeness_check(text: str, profile: dict, catalog=None) -> int:
             for target, ids in ((technical_target, catalog.find_in_text(line)), ("soft_skills", soft_ids)):
                 for skill_id in sorted(ids - listed):
                     listed.add(skill_id)
+                    for c in lists:   # replace an unverified AI item for the same skill with this verified one
+                        profile[c][:] = [i for i in profile[c] if i.get("status") == "supported" or key(i["name"]) != skill_id]
                     profile[target].append({
                         "name": catalog.name_of(skill_id), "quote": line[:200], "status": "supported", "origin": "rule",
                         "note": f"Added by a completeness check: named in the text under '{section['heading'] or section['name']}'.",

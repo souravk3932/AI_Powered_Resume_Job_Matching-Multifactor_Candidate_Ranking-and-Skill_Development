@@ -1,0 +1,54 @@
+{
+  "version": "roles-v1",
+  "note": "Starting weights for each kind of role. They are illustrative, not universal truths, and every profile adds up to 100. Edit this file to change how a role is scored. 'kind' says how a factor behaves when the resume has nothing for it: core = shown as 'not provided' and left out of the sum; bonus = 'not applicable' (neutral); assessment = 'not available' until the student takes a skill assessment.",
+  "factors": [
+    {"id": "technical_skills", "name": "Technical skills", "kind": "core"},
+    {"id": "soft_skills", "name": "Soft skills", "kind": "core"},
+    {"id": "education", "name": "Education", "kind": "core"},
+    {"id": "experience", "name": "Relevant experience", "kind": "core"},
+    {"id": "projects", "name": "Projects and practical work", "kind": "core"},
+    {"id": "certifications", "name": "Certifications", "kind": "bonus"},
+    {"id": "achievements", "name": "Achievements", "kind": "bonus"},
+    {"id": "leadership", "name": "Leadership and entrepreneurship", "kind": "bonus"},
+    {"id": "funding", "name": "Funding and grants", "kind": "bonus"},
+    {"id": "assessment", "name": "Verified assessment", "kind": "assessment"}
+  ],
+  "roles": {
+    "default": {
+      "name": "General role",
+      "weights": {"technical_skills": 25, "soft_skills": 10, "education": 10, "experience": 15, "projects": 15, "certifications": 5, "achievements": 5, "leadership": 5, "funding": 5, "assessment": 5},
+      "keywords": [],
+      "title_hints": []
+    },
+    "software_developer": {
+      "name": "Software developer",
+      "weights": {"technical_skills": 30, "soft_skills": 7, "education": 8, "experience": 15, "projects": 20, "certifications": 5, "achievements": 5, "leadership": 3, "funding": 2, "assessment": 5},
+      "keywords": ["hackathon", "coding", "programming", "competitive programming", "open source", "software", "developer", "algorithm", "codeforces", "leetcode"],
+      "title_hints": ["developer", "engineer", "programmer", "sde", "software", "full stack", "fullstack", "backend", "back-end", "frontend", "front-end", "devops", "web"]
+    },
+    "data_analyst": {
+      "name": "Data analyst or scientist",
+      "weights": {"technical_skills": 28, "soft_skills": 8, "education": 10, "experience": 14, "projects": 18, "certifications": 8, "achievements": 4, "leadership": 3, "funding": 2, "assessment": 5},
+      "keywords": ["data", "analytics", "kaggle", "machine learning", "statistics", "visualization", "dashboard", "research", "model"],
+      "title_hints": ["data analyst", "data scientist", "analytics", "business intelligence", "bi developer", "machine learning", "ml engineer", "ai engineer", "analyst"]
+    },
+    "project_manager": {
+      "name": "Project or product manager",
+      "weights": {"technical_skills": 10, "soft_skills": 14, "education": 8, "experience": 22, "projects": 12, "certifications": 6, "achievements": 6, "leadership": 14, "funding": 3, "assessment": 5},
+      "keywords": ["project", "management", "event", "organised", "organized", "coordination", "scrum", "agile", "delivery", "stakeholder"],
+      "title_hints": ["project manager", "product manager", "program manager", "scrum master", "delivery manager", "project coordinator", "product owner"]
+    },
+    "business_development": {
+      "name": "Business development",
+      "weights": {"technical_skills": 5, "soft_skills": 16, "education": 8, "experience": 20, "projects": 8, "certifications": 4, "achievements": 12, "leadership": 10, "funding": 12, "assessment": 5},
+      "keywords": ["sales", "business", "pitch", "startup", "marketing", "client", "revenue", "growth", "negotiation", "case competition", "partnership"],
+      "title_hints": ["business development", "sales", "growth", "marketing", "account executive", "partnerships", "bd "]
+    },
+    "entrepreneurial_innovation": {
+      "name": "Entrepreneurial or innovation role",
+      "weights": {"technical_skills": 12, "soft_skills": 10, "education": 5, "experience": 10, "projects": 20, "certifications": 3, "achievements": 10, "leadership": 12, "funding": 13, "assessment": 5},
+      "keywords": ["startup", "innovation", "incubat", "seed", "grant", "prototype", "patent", "founder", "venture", "pitch", "hackathon"],
+      "title_hints": ["founder", "entrepreneur", "innovation", "startup", "intrapreneur", "venture", "incubat"]
+    }
+  }
+}

@@ -20,6 +20,17 @@ const analysisSchema = new mongoose.Schema(
     skillMatch: { type: mongoose.Schema.Types.Mixed, select: false },
     summary: { type: mongoose.Schema.Types.Mixed, default: {} }, // counts of matched / partial / missing
 
+    // EXACT copies of the two AI readings this analysis was built from. Re-scoring later uses these,
+    // so it still works even if the student re-analyses the resume or job afterwards.
+    resumeProfileSnapshot: { type: mongoose.Schema.Types.Mixed, select: false },
+    jdProfileSnapshot: { type: mongoose.Schema.Types.Mixed, select: false },
+
+    // Every scoring run is APPENDED here and never edited: { at, trigger, result }.
+    // trigger: "initial" now; "role_change" when the student picks another role; Phase 11 adds "after_assessment".
+    scoreSnapshots: { type: [mongoose.Schema.Types.Mixed], select: false, default: [] },
+    // Short summary of the newest snapshot, for lists: { overall, lowerBound, coverage, roleProfile }
+    latestScore: { type: mongoose.Schema.Types.Mixed, default: null },
+
     engineVersion: { type: String, default: "" },
     catalogVersion: { type: String, default: "" },
     embeddingModel: { type: String, default: "" },

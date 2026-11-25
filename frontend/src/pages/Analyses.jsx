@@ -15,6 +15,10 @@ export default function Analyses() {
   const [current, setCurrent] = useState(null); // the analysis being shown
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [roles, setRoles] = useState([]);       // role profiles for the "score as" chooser
+  const [progress, setProgress] = useState("");   // what the Compare button is doing right now
+  const [rescoring, setRescoring] = useState(false);
+  const [rescoreError, setRescoreError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -28,19 +32,60 @@ export default function Analyses() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api("/analyses/roles").then((d) => setRoles(d.roles)).catch(() => {}); }, []);
+
+  // Score the same comparison again with another role's weights (adds a snapshot, keeps the old ones)
+  async function rescore(roleProfile) {
+    setRescoreError("");
+    setRescoring(true);
+    try {
+      const data = await api(`/analyses/${current.id}/score`, { method: "POST", body: { roleProfile } });
+      setCurrent(data.analysis);
+      await load();
+    } catch (err) {
+      setRescoreError(err.message);
+    } finally {
+      setRescoring(false);
+    }
+  }
+
+  // Get one document ready for comparing: read its text if that has not happened, then let the AI analyse it.
+  // Each step says what it is doing, and a failure stops with the real reason.
+  async function prepare(base, label, textDone, profileDone) {
+    if (!textDone) {
+      setProgress(`Reading the text of ${label}…`);
+      const read = (await api(`${base}/extract`, { method: "POST" })).extraction;
+      if (read.status !== "done") throw new Error(read.error || `Could not read the text of ${label}.`);
+    }
+    if (!profileDone) {
+      setProgress(`The AI is reading ${label} (about 10 seconds)…`);
+      const analysed = (await api(`${base}/profile`, { method: "POST" })).profile;
+      if (analysed.status !== "done") throw new Error(analysed.error || `The AI could not read ${label}.`);
+    }
+  }
 
   async function compare(e) {
     e.preventDefault();
     setError("");
     setBusy(true);
     try {
+      const resume = resumes.find((r) => r.id === resumeId);
+      const job = jds.find((j) => j.id === jdId);
+      // 1. Make sure both documents are ready (this is what used to be left to the student)
+      await prepare(`/resumes/${resume.id}/versions/${resume.currentVersionNo}`, `your resume “${resume.name}”`,
+        resume.currentVersion.extraction.status === "done", resumeReady(resume));
+      await prepare(`/jds/${job.id}`, `the job “${job.title}”`, job.extraction.status === "done", jdReady(job));
+      // 2. Compare and score
+      setProgress("Comparing skills and scoring…");
       const data = await api("/analyses", { method: "POST", body: { resumeId, jdId } });
       setCurrent(data.analysis);
       await load();
     } catch (err) {
       setError(err.message);
+      await load(); // whatever did get prepared is kept, so the next try starts further along
     } finally {
       setBusy(false);
+      setProgress("");
     }
   }
 
@@ -77,8 +122,8 @@ export default function Analyses() {
                 <select className={selectCls} value={resumeId} onChange={(e) => setResumeId(e.target.value)} required>
                   <option value="">Choose a resume…</option>
                   {resumes.map((r) => (
-                    <option key={r.id} value={r.id} disabled={!resumeReady(r)}>
-                      {r.name} (v{r.currentVersionNo}){resumeReady(r) ? "" : " – analyse with AI first"}
+                    <option key={r.id} value={r.id}>
+                      {r.name} (v{r.currentVersionNo}){resumeReady(r) ? "" : " – the AI will read it first"}
                     </option>
                   ))}
                 </select>
@@ -88,14 +133,14 @@ export default function Analyses() {
                 <select className={selectCls} value={jdId} onChange={(e) => setJdId(e.target.value)} required>
                   <option value="">Choose a job…</option>
                   {jds.map((j) => (
-                    <option key={j.id} value={j.id} disabled={!jdReady(j)}>
-                      {j.title}{j.organization ? ` – ${j.organization}` : ""}{jdReady(j) ? "" : " – analyse with AI first"}
+                    <option key={j.id} value={j.id}>
+                      {j.title}{j.organization ? ` – ${j.organization}` : ""}{jdReady(j) ? "" : " – the AI will read it first"}
                     </option>
                   ))}
                 </select>
               </label>
               <button disabled={busy || !resumeId || !jdId} className="w-full rounded-lg bg-ink px-4 py-3 font-semibold text-white hover:bg-ink-soft disabled:opacity-60">
-                {busy ? "Comparing…" : "Compare skills"}
+                {busy ? (progress || "Comparing…") : "Compare skills"}
               </button>
             </form>
 
@@ -109,6 +154,7 @@ export default function Analyses() {
                       className={`w-full rounded-lg border p-3 text-left text-sm hover:bg-paper ${current?.id === a.id ? "border-ink" : "border-line bg-white"}`}>
                       <p className="font-semibold">{a.resumeName} (v{a.versionNo}) vs {a.jobTitle}</p>
                       <p className="text-xs text-slate">
+                        {a.latestScore?.overall != null && <><b>Score {a.latestScore.overall}</b> &middot; </>}
                         Required: {a.summary?.required?.matched ?? 0} of {a.summary?.required?.total ?? 0} matched &middot; {new Date(a.createdAt).toLocaleDateString()}
                       </p>
                     </button>
@@ -119,7 +165,7 @@ export default function Analyses() {
           </div>
 
           <section className="rounded-2xl border border-line bg-white p-6">
-            {current ? <MatchResult analysis={current} /> : (
+            {current ? <MatchResult key={current.id} analysis={current} roles={roles} onRescore={rescore} rescoring={rescoring} rescoreError={rescoreError} /> : (
               <div>
                 <p className="font-display text-lg font-bold">No comparison selected</p>
                 <p className="mt-1 text-slate">Run a new comparison, or open an earlier one from the list.</p>

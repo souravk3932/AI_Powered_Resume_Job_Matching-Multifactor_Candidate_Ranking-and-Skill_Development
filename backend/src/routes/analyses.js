@@ -5,7 +5,7 @@ const Resume = require("../models/Resume");
 const ResumeVersion = require("../models/ResumeVersion");
 const JobDescription = require("../models/JobDescription");
 const Analysis = require("../models/Analysis");
-const { matchSkills, AiServiceError } = require("../utils/aiClient");
+const { matchSkills, scoreEvaluate, scoreRoles, AiServiceError } = require("../utils/aiClient");
 
 const router = express.Router();
 router.use(requireAuth); // every analysis route needs a login
@@ -13,9 +13,21 @@ router.use(requireAuth); // every analysis route needs a login
 const MAX_ANALYSES_PER_STUDENT = 200;
 const validId = (id) => mongoose.Types.ObjectId.isValid(id);
 
-// Short form for lists, full form (with every requirement) for one analysis
+// Short summary of one score result, kept on the analysis for lists
+function scoreSummary(result) {
+  return {
+    overall: result.overall,
+    lowerBound: result.lower_bound,
+    coverage: result.coverage,
+    evidenceLevel: result.evidence_level,
+    roleProfile: { id: result.role_profile.id, name: result.role_profile.name, autoDetected: result.role_profile.auto_detected },
+  };
+}
+
+// Short form for lists, full form (with every requirement and every score snapshot) for one analysis
 function analysisView(a, { full = false } = {}) {
   return {
+    latestScore: a.latestScore,
     id: a._id,
     resumeId: a.resumeId,
     versionNo: a.versionNo,
@@ -28,9 +40,19 @@ function analysisView(a, { full = false } = {}) {
     embeddingModel: a.embeddingModel,
     warnings: a.warnings,
     createdAt: a.createdAt,
-    ...(full ? { skillMatch: a.skillMatch, inputs: a.inputs } : {}),
+    ...(full ? { skillMatch: a.skillMatch, inputs: a.inputs, scoreSnapshots: a.scoreSnapshots } : {}),
   };
 }
+
+// GET /api/analyses/roles -> the role profiles and their weights, for the role chooser
+router.get("/roles", async (req, res) => {
+  try {
+    res.json(await scoreRoles());
+  } catch (err) {
+    if (err instanceof AiServiceError) return res.status(502).json({ error: err.userMessage });
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
 
 // POST /api/analyses  { resumeId, jdId, versionNo? }  -> compare one resume version with one job description
 router.post("/", async (req, res) => {
@@ -68,6 +90,21 @@ router.post("/", async (req, res) => {
       throw err;
     }
 
+    // Score it too. If scoring fails, the skill match is still saved and the student is told.
+    const warnings = [...result.warnings];
+    let score = null;
+    try {
+      score = await scoreEvaluate({
+        resume: version.profile.data, jd: jd.profile.data, match: result,
+        role_profile: typeof req.body.roleProfile === "string" ? req.body.roleProfile : null, job_title: jd.title,
+      });
+    } catch (err) {
+      if (!(err instanceof AiServiceError)) throw err;
+      if (String(err.detail).includes("422")) return res.status(400).json({ error: err.userMessage }); // an unknown role name
+      console.error("score failed:", err.detail || err.message);
+      warnings.push("The skill match was saved, but scoring failed: " + err.userMessage);
+    }
+
     const analysis = await Analysis.create({
       studentId: req.studentId,
       resumeId: resume._id,
@@ -82,7 +119,11 @@ router.post("/", async (req, res) => {
       engineVersion: result.engine_version,
       catalogVersion: result.catalog_version,
       embeddingModel: result.embedding_model || "",
-      warnings: result.warnings,
+      warnings,
+      resumeProfileSnapshot: version.profile.data,
+      jdProfileSnapshot: jd.profile.data,
+      scoreSnapshots: score ? [{ at: new Date(), trigger: "initial", result: score }] : [],
+      latestScore: score ? scoreSummary(score) : null,
       inputs: {
         resumeProfile: { promptVersion: version.profile.promptVersion, model: version.profile.model, analysedAt: version.profile.analysedAt },
         jdProfile: { promptVersion: jd.profile.promptVersion, model: jd.profile.model, analysedAt: jd.profile.analysedAt },
@@ -101,12 +142,45 @@ router.get("/", async (req, res) => {
   res.json({ analyses: list.map((a) => analysisView(a)) });
 });
 
-// GET /api/analyses/:id -> one analysis with every requirement, evidence and reason
+// GET /api/analyses/:id -> one analysis with every requirement, evidence, reason and score snapshot
 router.get("/:id", async (req, res) => {
   if (!validId(req.params.id)) return res.status(404).json({ error: "Analysis not found" });
-  const a = await Analysis.findOne({ _id: req.params.id, studentId: req.studentId }).select("+skillMatch");
+  const a = await Analysis.findOne({ _id: req.params.id, studentId: req.studentId }).select("+skillMatch +scoreSnapshots");
   if (!a) return res.status(404).json({ error: "Analysis not found" });
   res.json({ analysis: analysisView(a, { full: true }) });
+});
+
+// POST /api/analyses/:id/score  { roleProfile }  -> score the SAME evidence again with another role's weights.
+// This ADDS a snapshot. Earlier scores are never changed, so the student can compare them.
+router.post("/:id/score", async (req, res) => {
+  try {
+    if (!validId(req.params.id)) return res.status(404).json({ error: "Analysis not found" });
+    const a = await Analysis.findOne({ _id: req.params.id, studentId: req.studentId })
+      .select("+skillMatch +resumeProfileSnapshot +jdProfileSnapshot +scoreSnapshots");
+    if (!a) return res.status(404).json({ error: "Analysis not found" });
+    if (!a.resumeProfileSnapshot || !a.jdProfileSnapshot) {
+      return res.status(409).json({ error: "This comparison was made before scoring existed. Run a new comparison to get a score." });
+    }
+    const roleProfile = req.body && typeof req.body.roleProfile === "string" ? req.body.roleProfile : null;
+
+    let score;
+    try {
+      score = await scoreEvaluate({ resume: a.resumeProfileSnapshot, jd: a.jdProfileSnapshot, match: a.skillMatch, role_profile: roleProfile, job_title: a.jobTitle });
+    } catch (err) {
+      if (!(err instanceof AiServiceError)) throw err;
+      return res.status(String(err.detail).includes("422") ? 400 : 502).json({ error: err.userMessage });
+    }
+
+    await Analysis.updateOne(
+      { _id: a._id, studentId: req.studentId },
+      { $push: { scoreSnapshots: { at: new Date(), trigger: "role_change", result: score } }, $set: { latestScore: scoreSummary(score) } }
+    );
+    const fresh = await Analysis.findOne({ _id: a._id, studentId: req.studentId }).select("+skillMatch +scoreSnapshots");
+    res.json({ analysis: analysisView(fresh, { full: true }) });
+  } catch (err) {
+    console.error("rescore error:", err.message);
+    res.status(500).json({ error: "Something went wrong" });
+  }
 });
 
 module.exports = router;
